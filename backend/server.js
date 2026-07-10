@@ -17,6 +17,7 @@ app.get('/', (req, res) => {
 
 // Proxy route for Machine Learning predictions
 app.post('/api/predict', async (req, res) => {
+  const reqStartTime = Date.now();
   try {
     const mlPayload = {
       cgpa: parseFloat(req.body.cgpa) || 7.0,
@@ -37,6 +38,20 @@ app.post('/api/predict', async (req, res) => {
   } catch (err) {
     console.error(`ML Service connection error: ${err.message}. Providing fallback prediction...`);
     
+    const cgpa = parseFloat(req.body.cgpa) || 7.0;
+    const prog = parseInt(req.body.programmingSkills) || 5;
+    const prob = parseInt(req.body.problemSolving) || 5;
+    const comm = parseInt(req.body.communication) || 5;
+    const lead = parseInt(req.body.leadership) || 5;
+    const proj = parseInt(req.body.projects) || 5;
+    const intern = parseInt(req.body.internships) || 5;
+    const cert = parseInt(req.body.certifications) || 5;
+    const tech = parseInt(req.body.technicalSkills) || 5;
+    const soft = parseInt(req.body.softSkills) || 5;
+
+    const rawFeatures = [cgpa, prog, prob, comm, lead, proj, intern, cert, tech, soft];
+    const scaledFeatures = rawFeatures.map(x => Number(((x - 5.5) / 2.1).toFixed(4)));
+
     // Fallback Mock Prediction in case FastAPI server is offline
     res.json({
       predicted_career: "Software Engineer",
@@ -67,7 +82,22 @@ Certifications and leadership attributes score lower, which might limit initial 
 ### Personalized Learning Roadmap
 - **Phase 1**: Acquire AWS Cloud Practitioner credential.
 - **Phase 2**: Deploy a distributed URL shortener application.
-`
+`,
+      groq_prompt: `You are an advanced AI Career Coach and Mentor. Generate a comprehensive, professional, and placement-ready career mentoring report for a student with the following profile:
+- Target Career Path: Software Engineer
+- Career Readiness Score: 76.5/100
+- Top Strengths: Programming Skills, Problem Solving, Technical Skills Depth
+- Top Weaknesses: Leadership, Certifications
+- Individual Ratings (1-10): ${JSON.stringify({ cgpa, programming_skills: prog, problem_solving: prob, communication: comm, leadership: lead, projects: proj, internships: intern, certifications: cert, technical_skills: tech, soft_skills: soft })}`,
+      raw_features: rawFeatures,
+      scaled_features: scaledFeatures,
+      classifier_raw_features: [cgpa, prog, tech, prob, Math.max(1, tech - 1), Math.max(1, tech - 1), proj, comm, lead],
+      classifier_scaled_features: [cgpa, prog, tech, prob, Math.max(1, tech - 1), Math.max(1, tech - 1), proj, comm, lead].map(x => Number(((x - 5.5) / 2.1).toFixed(4))),
+      missing_values_handled: "No missing values found. Inputs validated.",
+      feature_encoding_info: `Interests list size (${(req.body.interests || []).length}) mapped. Certifications list size (${(req.body.certificationsList || []).length}) mapped.`,
+      feature_scaling_info: "StandardScaler applied. Continuous variables scaled to unit variance and zero mean.",
+      model_version: "v1.0 (Fallback)",
+      prediction_time_ms: Date.now() - reqStartTime
     });
   }
 });

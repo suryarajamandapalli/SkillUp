@@ -166,6 +166,14 @@ const AppContent: React.FC = () => {
               }
             />
             <Route
+              path="/admin/ml-console"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="ml-console" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/reports"
               element={
                 <ProtectedRoute requireAdmin>

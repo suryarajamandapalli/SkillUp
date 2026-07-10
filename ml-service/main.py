@@ -122,11 +122,15 @@ def read_root():
     return {"message": "SkillUp AI Career Success Predictor & AI Mentor service is running.", "status": "active"}
 
 # Helper to generate AI mentor report via Groq LLM
-def query_groq_llm(predicted_career: str, readiness_score: float, strengths: List[str], weaknesses: List[str], scores: Dict[str, Any]) -> str:
+def query_groq_llm(predicted_career: str, readiness_score: float, strengths: List[str], weaknesses: List[str], scores: Dict[str, Any]) -> Dict[str, str]:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         print("Warning: GROQ_API_KEY is not defined. Using high-quality rule-based fallback report.")
-        return generate_fallback_report(predicted_career, readiness_score, strengths, weaknesses, scores)
+        prompt = f"Student Target Career: {predicted_career}, Readiness Score: {readiness_score}/100, Ratings: {json.dumps(scores)}"
+        return {
+            "ai_report": generate_fallback_report(predicted_career, readiness_score, strengths, weaknesses, scores),
+            "groq_prompt": prompt.strip()
+        }
         
     url = "https://api.groq.com/openai/v1/chat/completions"
     prompt = f"""
@@ -192,10 +196,16 @@ def query_groq_llm(predicted_career: str, readiness_score: float, strengths: Lis
             res_body = response.read().decode("utf-8")
             res_json = json.loads(res_body)
             ai_text = res_json["choices"][0]["message"]["content"]
-            return ai_text
+            return {
+                "ai_report": ai_text,
+                "groq_prompt": prompt.strip()
+            }
     except Exception as e:
         print(f"Error querying Groq API: {e}. Falling back to rule-based report.")
-        return generate_fallback_report(predicted_career, readiness_score, strengths, weaknesses, scores)
+        return {
+            "ai_report": generate_fallback_report(predicted_career, readiness_score, strengths, weaknesses, scores),
+            "groq_prompt": prompt.strip()
+        }
 
 # Rule-based fallback report generator
 def generate_fallback_report(career: str, score: float, strengths: List[str], weaknesses: List[str], scores: Dict[str, Any]) -> str:
@@ -247,6 +257,8 @@ Your base competencies are strong. By channeling focus into the roadmap mileston
 
 @app.post("/predict")
 def predict_success(data: AssessmentInput):
+    import time
+    start_time = time.perf_counter()
     if classifier is None or regressor is None:
         raise HTTPException(
             status_code=503,
@@ -332,7 +344,10 @@ def predict_success(data: AssessmentInput):
             weaknesses = ["No critical weaknesses identified"]
 
         # 5. Query Groq LLM to generate the report
-        ai_report = query_groq_llm(predicted_career, readiness_score, strengths, weaknesses, scores_dict)
+        groq_res = query_groq_llm(predicted_career, readiness_score, strengths, weaknesses, scores_dict)
+
+        end_time = time.perf_counter()
+        prediction_time_ms = round((end_time - start_time) * 1000, 2)
 
         return {
             "predicted_career": predicted_career,
@@ -341,7 +356,17 @@ def predict_success(data: AssessmentInput):
             "feature_importance": feat_importances,
             "strengths": strengths[:4],
             "weaknesses": weaknesses[:4],
-            "ai_report": ai_report
+            "ai_report": groq_res["ai_report"],
+            "groq_prompt": groq_res["groq_prompt"],
+            "raw_features": reg_features,
+            "scaled_features": scaled_reg.tolist()[0],
+            "classifier_raw_features": classifier_features,
+            "classifier_scaled_features": scaled_clf.tolist()[0],
+            "missing_values_handled": "No missing values. Feature inputs validated and initialized.",
+            "feature_encoding_info": f"Interests list size ({len(data.interests)}) mapped. Certifications list size ({len(data.certifications_list)}) mapped.",
+            "feature_scaling_info": "StandardScaler applied. Continuous variables scaled to unit variance and zero mean.",
+            "model_version": "v1.0",
+            "prediction_time_ms": prediction_time_ms
         }
 
     except Exception as e:

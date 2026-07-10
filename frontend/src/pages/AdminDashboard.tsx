@@ -5,9 +5,10 @@ import {
   Users, Activity, Trophy, Calendar, FileDown, Download, RotateCw 
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { MlPredictionConsole } from './MlPredictionConsole';
 
 interface AdminDashboardProps {
-  tab: 'dashboard' | 'students' | 'analytics' | 'predictions' | 'reports' | 'users' | 'settings' | 'logs';
+  tab: 'dashboard' | 'students' | 'analytics' | 'predictions' | 'reports' | 'users' | 'settings' | 'logs' | 'ml-console';
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab }) => {
@@ -441,6 +442,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ tab }) => {
             ))}
           </div>
         </div>
+      )}
+
+      {/* 9. ML PREDICTION DEBUG CONSOLE */}
+      {tab === 'ml-console' && (
+        <MlPredictionConsole />
       )}
     </div>
   );

@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, ClipboardList, Compass, ListTodo, Bot, User, 
-  Users, BarChart3, Cpu, FileDown, Shield, Settings, X 
+  Users, BarChart3, Cpu, FileDown, Shield, Settings, X, Terminal 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -32,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/admin/students', label: 'Students', icon: Users },
     { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
     { to: '/admin/predictions', label: 'Predictions', icon: Cpu },
+    { to: '/admin/ml-console', label: 'ML Prediction Console', icon: Terminal },
     { to: '/admin/reports', label: 'Reports', icon: FileDown },
     { to: '/admin/users', label: 'User Management', icon: Shield },
     { to: '/admin/settings', label: 'Settings', icon: Settings },
