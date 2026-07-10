@@ -12,7 +12,9 @@ import {
 import { db, auth } from '../config/firebase';
 import axios from 'axios';
 
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:5000/api'
+  : 'https://skillup-backend-woad.vercel.app/api';
 
 export const api = {
   // Call Express Proxy Backend for ML Success Predictions & Groq LLM
