@@ -21,7 +21,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   ];
 
   if (user.role === 'admin') {
-    links.push({ to: '/admin', label: 'Admin Panel', icon: ShieldAlert });
+    links.push({ to: '/admin/dashboard', label: 'Admin Panel', icon: ShieldAlert });
   }
 
   const activeClass = "flex items-center gap-3 px-4 py-2.5 text-base font-bold text-[#2563EB] bg-blue-50 border-r-2 border-[#2563EB] rounded-l-md transition-all-200";

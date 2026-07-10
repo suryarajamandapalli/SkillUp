@@ -39,8 +39,8 @@ interface AuthContextType {
   firebaseUser: FirebaseUser | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
-  loginWithEmail: (email: string, pass: string) => Promise<void>;
-  registerWithEmail: (email: string, pass: string, name: string) => Promise<void>;
+  loginWithEmail: (email: string, pass: string, expectedRole: 'student' | 'admin') => Promise<void>;
+  registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'admin') => Promise<void>;
   logout: () => Promise<void>;
   updateProfile: (profileUpdates: Partial<UserProfile>) => Promise<void>;
 }
@@ -52,61 +52,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync profile data from Firestore
-  const syncProfile = async (fbUser: FirebaseUser) => {
-    try {
-      const userRef = doc(db, 'users', fbUser.uid);
-      const userSnap = await getDoc(userRef);
+  // Sync profile data from Firestore with role enforcement
+  const syncProfile = async (fbUser: FirebaseUser, targetRole?: 'student' | 'admin') => {
+    const userRef = doc(db, 'users', fbUser.uid);
+    const userSnap = await getDoc(userRef);
 
-      if (userSnap.exists()) {
-        setUser(userSnap.data() as UserProfile);
-      } else {
-        // Create initial profile in Firestore
-        const initialProfile: UserProfile = {
-          uid: fbUser.uid,
-          name: fbUser.displayName || 'Student',
-          email: fbUser.email || '',
-          photoURL: fbUser.photoURL || '',
-          college: '',
-          branch: '',
-          year: '',
-          phone: '',
-          skills: [],
-          interests: [],
-          cgpa: 0,
-          careerGoal: '',
-          roadmapProgress: 0,
-          role: fbUser.email === 'admin@demo.com' || fbUser.email?.endsWith('@skillup.com') ? 'admin' : 'student'
-        };
-        
-        await setDoc(userRef, {
-          ...initialProfile,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
-        
-        setUser(initialProfile);
-      }
-    } catch (err) {
-      console.warn("Firestore profile sync failed. Using local storage fallback:", err);
-      // Fallback local profile if Firestore is not created or throws permissions issue
-      const localProfile: UserProfile = {
+    if (userSnap.exists()) {
+      const data = userSnap.data() as UserProfile;
+      setUser(data);
+      return data;
+    } else {
+      // Create initial profile in Firestore
+      const initialProfile: UserProfile = {
         uid: fbUser.uid,
-        name: fbUser.displayName || 'Demo Student',
-        email: fbUser.email || 'student@demo.com',
+        name: fbUser.displayName || 'Demo Profile',
+        email: fbUser.email || '',
         photoURL: fbUser.photoURL || '',
-        college: 'Demo University',
-        branch: 'Computer Science',
-        year: '2026',
-        phone: '123-456-7890',
-        skills: ['Python', 'SQL', 'React'],
-        interests: ['Web Development'],
-        cgpa: 8.5,
-        careerGoal: 'Software Engineer',
+        college: '',
+        branch: '',
+        year: '',
+        phone: '',
+        skills: [],
+        interests: [],
+        cgpa: 0,
+        careerGoal: '',
         roadmapProgress: 0,
-        role: fbUser.email === 'admin@demo.com' || fbUser.email?.endsWith('@skillup.com') ? 'admin' : 'student'
+        role: targetRole || 'student'
       };
-      setUser(localProfile);
+      
+      await setDoc(userRef, {
+        ...initialProfile,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      setUser(initialProfile);
+      return initialProfile;
     }
   };
 
@@ -115,7 +96,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
       if (fbUser) {
         setFirebaseUser(fbUser);
-        await syncProfile(fbUser);
+        try {
+          await syncProfile(fbUser);
+        } catch (err) {
+          console.warn("Auth sync error:", err);
+        }
       } else {
         setFirebaseUser(null);
         setUser(null);
@@ -129,7 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogle = async () => {
     setLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const cred = await signInWithPopup(auth, googleProvider);
+      // Google sign-in is always Student role
+      await syncProfile(cred.user, 'student');
     } catch (err) {
       console.error("Google Sign-In failed:", err);
       throw err;
@@ -138,10 +125,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithEmail = async (email: string, pass: string) => {
+  const loginWithEmail = async (email: string, pass: string, expectedRole: 'student' | 'admin') => {
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, pass);
+      const cred = await signInWithEmailAndPassword(auth, email, pass);
+      const userRef = doc(db, 'users', cred.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data() as UserProfile;
+        if (data.role !== expectedRole) {
+          // Force sign out immediately to clean session
+          await signOut(auth);
+          throw new Error(`Access Denied: Your account is registered as a ${data.role}.`);
+        }
+        setUser(data);
+      } else {
+        // Doc not found: sync profile with expected role
+        const profile = await syncProfile(cred.user, expectedRole);
+        setUser(profile);
+      }
     } catch (err) {
       console.error("Email login failed:", err);
       throw err;
@@ -150,16 +153,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const registerWithEmail = async (email: string, pass: string, name: string) => {
+  const registerWithEmail = async (email: string, pass: string, name: string, role: 'student' | 'admin') => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-      // Update display name in Firebase Auth
       await updateFirebaseProfile(userCredential.user, {
         displayName: name
       });
-      // Force sync profile creation
-      await syncProfile(userCredential.user);
+      // Force sync profile creation with designated role
+      await syncProfile(userCredential.user, role);
     } catch (err) {
       console.error("Email registration failed:", err);
       throw err;
@@ -184,7 +186,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!firebaseUser) throw new Error("No active user session.");
     try {
       const userRef = doc(db, 'users', firebaseUser.uid);
-      
       const updatePayload = {
         ...profileUpdates,
         updatedAt: serverTimestamp()
@@ -200,7 +201,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       });
     } catch (err) {
-      console.warn("Failed to update user profile in Firestore. Updating local profile state instead:", err);
+      console.warn("Firestore profile update issue, updating locally:", err);
       setUser(prev => {
         if (!prev) return null;
         return {

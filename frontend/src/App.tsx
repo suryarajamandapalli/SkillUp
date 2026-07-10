@@ -125,6 +125,10 @@ const AppContent: React.FC = () => {
             {/* Admin-only Routes */}
             <Route
               path="/admin"
+              element={<Navigate to="/admin/dashboard" replace />}
+            />
+            <Route
+              path="/admin/dashboard"
               element={
                 <ProtectedRoute requireAdmin>
                   <AdminDashboard />
