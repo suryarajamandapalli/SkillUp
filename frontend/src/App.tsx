@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
-
-// Layout & Shared Components
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { CareerChatbot } from './components/CareerChatbot';
@@ -21,7 +19,7 @@ import { Analytics } from './pages/Analytics';
 import { Profile } from './pages/Profile';
 import { AdminDashboard } from './pages/AdminDashboard';
 
-// Protected Route Wrapper using Firebase Auth State
+// Protected Route Wrapper enforcing strict RBAC
 const ProtectedRoute: React.FC<{ children: React.ReactNode; requireAdmin?: boolean }> = ({ children, requireAdmin }) => {
   const { firebaseUser, user, loading } = useAuth();
   const location = useLocation();
@@ -39,7 +37,13 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; requireAdmin?: boole
   }
 
   if (requireAdmin && user?.role !== 'admin') {
+    // Student attempting to access admin page -> Redirect to student dashboard
     return <Navigate to="/dashboard" replace />;
+  }
+
+  if (!requireAdmin && user?.role === 'admin') {
+    // Admin attempting to access student page -> Redirect to admin dashboard
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -133,7 +137,63 @@ const AppContent: React.FC = () => {
               path="/admin/dashboard"
               element={
                 <ProtectedRoute requireAdmin>
-                  <AdminDashboard />
+                  <AdminDashboard tab="dashboard" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/students"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="students" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="analytics" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/predictions"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="predictions" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/reports"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="reports" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="users" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="settings" />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/logs"
+              element={
+                <ProtectedRoute requireAdmin>
+                  <AdminDashboard tab="logs" />
                 </ProtectedRoute>
               }
             />

@@ -1,7 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, ClipboardList, BarChart3, User, ShieldAlert, X } from 'lucide-react';
+import { 
+  LayoutDashboard, ClipboardList, Compass, ListTodo, Bot, User, 
+  Users, BarChart3, Cpu, FileDown, Shield, Settings, X 
+} from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,16 +16,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   if (!firebaseUser || !user) return null;
 
-  const links = [
+  // Student Links definitions
+  const studentLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/assessment', label: 'Career Assessment', icon: ClipboardList },
-    { to: '/analytics', label: 'Analytics Panel', icon: BarChart3 },
-    { to: '/profile', label: 'My Profile', icon: User },
+    { to: '/assessment', label: 'Assessment', icon: ClipboardList },
+    { to: '/skill-gap', label: 'Skill Gap', icon: Compass },
+    { to: '/roadmap', label: 'Roadmap', icon: ListTodo },
+    { to: '/result', label: 'AI Mentor', icon: Bot },
+    { to: '/profile', label: 'Profile', icon: User },
   ];
 
-  if (user.role === 'admin') {
-    links.push({ to: '/admin/dashboard', label: 'Admin Panel', icon: ShieldAlert });
-  }
+  // Admin Links definitions
+  const adminLinks = [
+    { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { to: '/admin/students', label: 'Students', icon: Users },
+    { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+    { to: '/admin/predictions', label: 'Predictions', icon: Cpu },
+    { to: '/admin/reports', label: 'Reports', icon: FileDown },
+    { to: '/admin/users', label: 'User Management', icon: Shield },
+    { to: '/admin/settings', label: 'Settings', icon: Settings },
+    { to: '/admin/logs', label: 'Logs', icon: ListTodo },
+  ];
+
+  const links = user.role === 'admin' ? adminLinks : studentLinks;
 
   const activeClass = "flex items-center gap-3 px-4 py-2.5 text-base font-bold text-[#2563EB] bg-blue-50 border-r-2 border-[#2563EB] rounded-l-md transition-all-200";
   const inactiveClass = "flex items-center gap-3 px-4 py-2.5 text-base font-semibold text-[#475569] hover:text-[#0F172A] hover:bg-[#F8FAFC] rounded-md transition-all-200";
