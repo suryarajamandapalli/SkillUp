@@ -191,6 +191,24 @@ You excel in **Programming Skills** and **Problem Solving**. In technical rounds
     return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
+  // Retrieve All Users (Admin Panel)
+  async getAllUsers() {
+    const results: any[] = [];
+    try {
+      const q = query(collection(db, 'users'));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((docSnap) => {
+        results.push({
+          _id: docSnap.id,
+          ...docSnap.data()
+        });
+      });
+    } catch (err) {
+      console.warn("Firestore users fetch failed:", err);
+    }
+    return results;
+  },
+
   // Calculate stats from Firestore and localStorage
   async getAnalytics() {
     let usersCount = 1;
