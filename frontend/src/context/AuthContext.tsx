@@ -32,13 +32,15 @@ interface UserProfile {
   roadmapProgress: number;
   latestPrediction?: any;
   role: 'student' | 'admin';
+  createdAt?: any;
+  lastLogin?: any;
 }
 
 interface AuthContextType {
   user: UserProfile | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
-  loginWithGoogle: () => Promise<void>;
+  loginWithGoogle: (expectedRole: 'student' | 'admin') => Promise<void>;
   loginWithEmail: (email: string, pass: string, expectedRole: 'student' | 'admin') => Promise<void>;
   registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'admin') => Promise<void>;
   logout: () => Promise<void>;
@@ -52,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Sync profile data from Firestore with role enforcement
+  // Sync profile data from Firestore
   const syncProfile = async (fbUser: FirebaseUser, targetRole?: 'student' | 'admin') => {
     const userRef = doc(db, 'users', fbUser.uid);
     const userSnap = await getDoc(userRef);
@@ -62,10 +64,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(data);
       return data;
     } else {
-      // Create initial profile in Firestore
       const initialProfile: UserProfile = {
         uid: fbUser.uid,
-        name: fbUser.displayName || 'Demo Profile',
+        name: fbUser.displayName || 'User Profile',
         email: fbUser.email || '',
         photoURL: fbUser.photoURL || '',
         college: '',
@@ -83,7 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await setDoc(userRef, {
         ...initialProfile,
         createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
+        lastLogin: serverTimestamp()
       });
       
       setUser(initialProfile);
@@ -99,7 +100,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           await syncProfile(fbUser);
         } catch (err) {
-          console.warn("Auth sync error:", err);
+          console.warn("Profile synchronization error:", err);
         }
       } else {
         setFirebaseUser(null);
@@ -111,12 +112,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const loginWithGoogle = async () => {
+  const loginWithGoogle = async (expectedRole: 'student' | 'admin') => {
     setLoading(true);
     try {
       const cred = await signInWithPopup(auth, googleProvider);
-      // Google sign-in is always Student role
-      await syncProfile(cred.user, 'student');
+      const userRef = doc(db, 'users', cred.user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data() as UserProfile;
+        if (data.role !== expectedRole) {
+          await signOut(auth);
+          throw new Error("You are not authorized to access this portal.");
+        }
+        await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
+        setUser({ ...data, lastLogin: new Date() });
+      } else {
+        const profile = await syncProfile(cred.user, expectedRole);
+        setUser(profile);
+      }
     } catch (err) {
       console.error("Google Sign-In failed:", err);
       throw err;
@@ -135,13 +149,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userSnap.exists()) {
         const data = userSnap.data() as UserProfile;
         if (data.role !== expectedRole) {
-          // Force sign out immediately to clean session
           await signOut(auth);
-          throw new Error(`Access Denied: Your account is registered as a ${data.role}.`);
+          throw new Error("You are not authorized to access this portal.");
         }
-        setUser(data);
+        await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
+        setUser({ ...data, lastLogin: new Date() });
       } else {
-        // Doc not found: sync profile with expected role
         const profile = await syncProfile(cred.user, expectedRole);
         setUser(profile);
       }
@@ -160,7 +173,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await updateFirebaseProfile(userCredential.user, {
         displayName: name
       });
-      // Force sync profile creation with designated role
       await syncProfile(userCredential.user, role);
     } catch (err) {
       console.error("Email registration failed:", err);
@@ -201,7 +213,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
       });
     } catch (err) {
-      console.warn("Firestore profile update issue, updating locally:", err);
+      console.warn("Profile update failed, modifying locally:", err);
       setUser(prev => {
         if (!prev) return null;
         return {
