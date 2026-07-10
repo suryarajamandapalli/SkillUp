@@ -40,9 +40,9 @@ interface AuthContextType {
   user: UserProfile | null;
   firebaseUser: FirebaseUser | null;
   loading: boolean;
-  loginWithGoogle: (expectedRole: 'student' | 'admin') => Promise<void>;
-  loginWithEmail: (email: string, pass: string, expectedRole: 'student' | 'admin') => Promise<void>;
-  registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'admin') => Promise<void>;
+  loginWithGoogle: (defaultRole: 'student' | 'admin') => Promise<UserProfile>;
+  loginWithEmail: (email: string, pass: string) => Promise<UserProfile>;
+  registerWithEmail: (email: string, pass: string, name: string, role: 'student' | 'admin') => Promise<UserProfile>;
   logout: () => Promise<void>;
   updateProfile: (profileUpdates: Partial<UserProfile>) => Promise<void>;
 }
@@ -112,7 +112,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubscribe();
   }, []);
 
-  const loginWithGoogle = async (expectedRole: 'student' | 'admin') => {
+  const loginWithGoogle = async (defaultRole: 'student' | 'admin'): Promise<UserProfile> => {
     setLoading(true);
     try {
       const cred = await signInWithPopup(auth, googleProvider);
@@ -121,15 +121,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (userSnap.exists()) {
         const data = userSnap.data() as UserProfile;
-        if (data.role !== expectedRole) {
-          await signOut(auth);
-          throw new Error("You are not authorized to access this portal.");
-        }
         await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
-        setUser({ ...data, lastLogin: new Date() });
+        const updated = { ...data, lastLogin: new Date() };
+        setUser(updated);
+        return updated;
       } else {
-        const profile = await syncProfile(cred.user, expectedRole);
+        const profile = await syncProfile(cred.user, defaultRole);
         setUser(profile);
+        return profile;
       }
     } catch (err) {
       console.error("Google Sign-In failed:", err);
@@ -139,7 +138,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginWithEmail = async (email: string, pass: string, expectedRole: 'student' | 'admin') => {
+  const loginWithEmail = async (email: string, pass: string): Promise<UserProfile> => {
     setLoading(true);
     try {
       const cred = await signInWithEmailAndPassword(auth, email, pass);
@@ -148,15 +147,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (userSnap.exists()) {
         const data = userSnap.data() as UserProfile;
-        if (data.role !== expectedRole) {
-          await signOut(auth);
-          throw new Error("You are not authorized to access this portal.");
-        }
         await setDoc(userRef, { lastLogin: serverTimestamp() }, { merge: true });
-        setUser({ ...data, lastLogin: new Date() });
+        const updated = { ...data, lastLogin: new Date() };
+        setUser(updated);
+        return updated;
       } else {
-        const profile = await syncProfile(cred.user, expectedRole);
+        // Doc not found: sync profile with default role 'student'
+        const profile = await syncProfile(cred.user, 'student');
         setUser(profile);
+        return profile;
       }
     } catch (err) {
       console.error("Email login failed:", err);
@@ -166,14 +165,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const registerWithEmail = async (email: string, pass: string, name: string, role: 'student' | 'admin') => {
+  const registerWithEmail = async (email: string, pass: string, name: string, role: 'student' | 'admin'): Promise<UserProfile> => {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, pass);
       await updateFirebaseProfile(userCredential.user, {
         displayName: name
       });
-      await syncProfile(userCredential.user, role);
+      const profile = await syncProfile(userCredential.user, role);
+      return profile;
     } catch (err) {
       console.error("Email registration failed:", err);
       throw err;

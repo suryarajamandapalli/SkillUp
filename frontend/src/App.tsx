@@ -11,7 +11,7 @@ import { CareerChatbot } from './components/CareerChatbot';
 // Pages
 import { Home } from './pages/Home';
 import { About } from './pages/About';
-import { Login } from './pages/Login';
+import { LoginSelection, StudentLogin, AdminLogin } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Assessment } from './pages/Assessment';
 import { Result } from './pages/Result';
@@ -62,7 +62,9 @@ const AppContent: React.FC = () => {
             {/* Public Routes */}
             <Route path="/" element={<Home />} />
             <Route path="/about" element={<About />} />
-            <Route path="/login" element={<Login />} />
+            <Route path="/login" element={<LoginSelection />} />
+            <Route path="/student/login" element={<StudentLogin />} />
+            <Route path="/admin/login" element={<AdminLogin />} />
 
             {/* Authenticated Student Routes */}
             <Route
